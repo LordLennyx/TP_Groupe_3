@@ -1,2 +1,5 @@
-=== CONFLIT RÉSOLU PAR LE CHEF ===
-Contribution LordLennyx + Delbrique
+=== FUSION FINALE PAR LE CHEF (LordLennyx) ===
+- Contribution initiale : Contenu initial par LordLennyx
+- Conflit Delbrique : === CONFLIT par Delbrique ===
+- Conflit LordLennyx : === CONFLIT par LordLennyx ===
+- Résolution : Toutes les contributions sont intégrées avec succès.
