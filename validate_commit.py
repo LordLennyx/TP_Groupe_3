@@ -1,102 +1,92 @@
 #!/usr/bin/env python3
-import os
-import sys
 import google.generativeai as genai
 import smtplib
 from email.mime.text import MIMEText
 
-# === CONFIGURATION GEMINI ===
-genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+API_KEY = "AIzaSyDZXeR1JVQHrv7tYWpJ1GWcSyNNxFn7KzQ"
+genai.configure(api_key=API_KEY)
+model = genai.GenerativeModel("models/gemini-2.5-flash")
 
-MODEL_NAME = "gemini-2.5-flash"  # modèle à jour
-
-# === EMAILS ===
 EMAILS = {
     "LordLennyx": "lensdaniels237@gmail.com",
-    "Delbrique": "valentinbiyong2@gmail.com",
+    "Delbrique": "valentinbiyong2@gmail.com"
 }
 
 SMTP_SERVER = "smtp.gmail.com"
 SMTP_PORT = 587
 SMTP_USER = "valentinbiyong2@gmail.com"
-SMTP_PASS = "wszswlbwiqfxaqlx"  # mot de passe d’application Gmail
+SMTP_PASS = "wszswlbwiqfxaqlx"
 
-def validate_ts(code: str, author: str, filename: str) -> str:
+def validate_ts(code: str, author: str, filename: str):
     prompt = f"""
-Tu es un expert TypeScript strict.
-Vérifie ce code dans {filename} :
+Tu es un relecteur TypeScript très strict.
+Analyse le code suivant du fichier {filename} écrit par {author}.
+
+Code:
 {code}
 
-RÈGLES OBLIGATOIRES :
-1. Types explicites (pas de 'any')
-2. Pas de console.log(), alert(), debugger
-3. Variables en camelCase
-4. Interfaces bien définies
-5. Pas de variables globales non déclarées
-Auteur : {author}
+Règles:
+1. pas de any
+2. pas de console.log / alert / debugger
+3. types explicites
+4. nommage camelCase
+5. expliquer quoi corriger
 
-Retourne UNIQUEMENT :
-- "VALIDE"
-- "INVALIDE: [explication courte]"
+Réponds exactement dans ce format:
+STATUS: VALIDE ou INVALIDE
+MESSAGE: phrase(s) à envoyer à l'auteur, en français, qui expliquent ce qu'il doit corriger.
 """
     try:
-        model = genai.GenerativeModel(MODEL_NAME)
         resp = model.generate_content(prompt)
-        return resp.text.strip()
+        txt = resp.text.strip()
+        status = "ERREUR"
+        message = txt
+        for line in txt.splitlines():
+            if line.startswith("STATUS:"):
+                status = line.replace("STATUS:", "").strip()
+            if line.startswith("MESSAGE:"):
+                message = line.replace("MESSAGE:", "").strip()
+        return status, message
     except Exception as e:
-        return f"ERREUR API: {e}"
+        return "ERREUR", f"ERREUR API: {e}"
 
-def send_rejection_email(author: str, filename: str, reason: str):
+def send_rejection_email(author: str, filename: str, msg_text: str):
     recipient = EMAILS.get(author, "fallback@example.com")
-    subject = f"🚨 Commit refusé : {filename}"
-    body = f"""
-Bonjour {author},
-
-Ton commit a été refusé par l'IA Gemini.
-Fichier : {filename}
-Raison : {reason}
-
-Corrige et recommence ton commit.
-— TP_Groupe_3
-"""
+    subject = f"Commit refusé : {filename}"
+    body = f"Bonjour {author},\n\n{msg_text}\n\nCorrige et recommence.\nTP_Groupe_3"
     msg = MIMEText(body)
     msg["Subject"] = subject
     msg["From"] = SMTP_USER
     msg["To"] = recipient
-
     try:
         server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
         server.starttls()
         server.login(SMTP_USER, SMTP_PASS)
-        server.send_message(msg)
+        server.sendmail(SMTP_USER, recipient, msg.as_string())
         server.quit()
-        print(f"📨 Email envoyé à {author} ({recipient})")
+        print("Email envoyé.")
     except Exception as e:
-        print(f"❌ Échec envoi email : {e}")
+        print(f"Échec email : {e}")
 
 if __name__ == "__main__":
+    import sys
     if len(sys.argv) != 3:
-        print("Usage: python validate_commit.py <fichier> <auteur>")
-        sys.exit(1)
-
-    filename = sys.argv[1]
-    author = sys.argv[2]
-
-    if not os.path.exists(filename):
-        print(f"⚠️ FICHIER {filename} INTROUVABLE")
-        sys.exit(1)
-
-    with open(filename, "r", encoding="utf-8") as f:
-        code = f.read()
-
-    result = validate_ts(code, author, filename)
-    print(result)
-
-    # 🔴 si erreur API ou invalide → commit refusé
-    if result.startswith("ERREUR API:") or result.startswith("INVALIDE"):
-        send_rejection_email(author, filename, result)
-        print("❌ COMMIT REFUSÉ PAR GEMINI")
-        sys.exit(1)
-    else:
-        print("✅ VALIDÉ PAR GEMINI")
-        sys.exit(0)
+        print("Usage: python3 validate_commit.py <fichier> <auteur>")
+        raise SystemExit(1)
+    filename, author = sys.argv[1], sys.argv[2]
+    try:
+        with open(filename, "r", encoding="utf-8") as f:
+            code = f.read()
+        status, message = validate_ts(code, author, filename)
+        print("STATUS:", status)
+        print("MESSAGE:", message)
+        if status.upper().startswith("INVALIDE") or status.upper().startswith("ERREUR"):
+            send_rejection_email(author, filename, message)
+            print("❌ COMMIT REFUSÉ PAR GEMINI")
+            raise SystemExit(1)
+        else:
+            print("✅ VALIDÉ PAR GEMINI")
+            raise SystemExit(0)
+    except FileNotFoundError:
+        print(f"FICHIER {filename} INTROUVABLE")
+        raise SystemExit(1)
