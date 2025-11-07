@@ -5,13 +5,12 @@ import google.generativeai as genai
 import smtplib
 from email.mime.text import MIMEText
 
-# --- CONFIG GEMINI ---
-# tu peux aussi faire: api_key = os.getenv("GEMINI_API_KEY")
+# === CONFIGURATION GEMINI ===
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
-model = genai.GenerativeModel("gemini-1.5-flash")
+MODEL_NAME = "gemini-2.5-flash"  # modèle à jour
 
-# --- CONFIG EMAILS ---
+# === EMAILS ===
 EMAILS = {
     "LordLennyx": "lensdaniels237@gmail.com",
     "Delbrique": "valentinbiyong2@gmail.com",
@@ -20,20 +19,20 @@ EMAILS = {
 SMTP_SERVER = "smtp.gmail.com"
 SMTP_PORT = 587
 SMTP_USER = "valentinbiyong2@gmail.com"
-SMTP_PASS = "wszs wlbw iqfx aqlx"
+SMTP_PASS = "wszswlbwiqfxaqlx"  # mot de passe d’application Gmail
 
 def validate_ts(code: str, author: str, filename: str) -> str:
     prompt = f"""
-Tu es un expert TypeScript strict. Vérifie ce code dans {filename} :
+Tu es un expert TypeScript strict.
+Vérifie ce code dans {filename} :
 {code}
 
 RÈGLES OBLIGATOIRES :
-1. Types explicites partout (interdit : any)
+1. Types explicites (pas de 'any')
 2. Pas de console.log(), alert(), debugger
 3. Variables en camelCase
 4. Interfaces bien définies
 5. Pas de variables globales non déclarées
-6. Code propre et commenté si complexe
 Auteur : {author}
 
 Retourne UNIQUEMENT :
@@ -41,21 +40,24 @@ Retourne UNIQUEMENT :
 - "INVALIDE: [explication courte]"
 """
     try:
-        response = model.generate_content(prompt)
-        return response.text.strip()
+        model = genai.GenerativeModel(MODEL_NAME)
+        resp = model.generate_content(prompt)
+        return resp.text.strip()
     except Exception as e:
         return f"ERREUR API: {e}"
 
 def send_rejection_email(author: str, filename: str, reason: str):
     recipient = EMAILS.get(author, "fallback@example.com")
-    subject = f"Commit refusé : {filename}"
-    body = f"""Bonjour {author},
+    subject = f"🚨 Commit refusé : {filename}"
+    body = f"""
+Bonjour {author},
 
-Ton commit a été refusé par Gemini.
+Ton commit a été refusé par l'IA Gemini.
 Fichier : {filename}
 Raison : {reason}
 
-Corrige et recommence.
+Corrige et recommence ton commit.
+— TP_Groupe_3
 """
     msg = MIMEText(body)
     msg["Subject"] = subject
@@ -68,39 +70,33 @@ Corrige et recommence.
         server.login(SMTP_USER, SMTP_PASS)
         server.send_message(msg)
         server.quit()
-        print("Email de refus envoyé.")
+        print(f"📨 Email envoyé à {author} ({recipient})")
     except Exception as e:
-        print(f"Échec email : {e}")
+        print(f"❌ Échec envoi email : {e}")
 
-def main():
+if __name__ == "__main__":
     if len(sys.argv) != 3:
-        print("Usage: python3 validate_commit.py <fichier_ts> <auteur>")
+        print("Usage: python validate_commit.py <fichier> <auteur>")
         sys.exit(1)
 
     filename = sys.argv[1]
     author = sys.argv[2]
 
     if not os.path.exists(filename):
-        print(f"FICHIER {filename} INTROUVABLE")
+        print(f"⚠️ FICHIER {filename} INTROUVABLE")
         sys.exit(1)
 
     with open(filename, "r", encoding="utf-8") as f:
         code = f.read()
 
     result = validate_ts(code, author, filename)
-    print("Résultat modèle :", result)
+    print(result)
 
-    if result.startswith("VALIDE"):
-        print("✅ COMMIT VALIDÉ PAR GEMINI")
-        sys.exit(0)
-    else:
-        # enlever le "INVALIDE: " si présent
-        reason = result
-        if result.startswith("INVALIDE:"):
-            reason = result[len("INVALIDE:"):].strip()
-        send_rejection_email(author, filename, reason)
+    # 🔴 si erreur API ou invalide → commit refusé
+    if result.startswith("ERREUR API:") or result.startswith("INVALIDE"):
+        send_rejection_email(author, filename, result)
         print("❌ COMMIT REFUSÉ PAR GEMINI")
         sys.exit(1)
-
-if __name__ == "__main__":
-    main()
+    else:
+        print("✅ VALIDÉ PAR GEMINI")
+        sys.exit(0)
