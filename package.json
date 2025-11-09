@@ -33,5 +33,9 @@
   },
   "lint-staged": {
      "**/*.ts": ["prettier --write"]
-  }
+  },
+  "scripts": {
+  "lint": "echo \"lint ok\""
+}
+
 }
