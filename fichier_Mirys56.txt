@@ -1,0 +1,12 @@
+<<<<<<< HEAD
+contenu initial par Mirys56
+=======
+Contenu initial par Mirys.56
+Modification 1 par Mirys56
+Modification 2 par Mirys56
+Modification 3 par Mirys56
+Modification 3 par Mirys56
+Modification 1 par Mirys56
+Modification 2 par Mirys56
+Modification 3 par Mirys56
+>>>>>>> origin/branche_Mirys56

@@ -1,0 +1,6 @@
+=== FUSION FINALE PAR LE CHEF (LordLennyx) ===
+- Contribution initiale : Contenu initial par LordLennyx
+- Conflit Delbrique : === CONFLIT par Delbrique ===
+- Conflit LordLennyx : === CONFLIT par LordLennyx ===
+- Conflit Mirys56 : === CONFLIT introduit par Mirys56 ===
+- Résolution : Toutes les contributions sont intégrées avec succès.
