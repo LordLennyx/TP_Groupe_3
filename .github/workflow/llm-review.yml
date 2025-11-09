@@ -1,0 +1,36 @@
+name: LLM Review
+
+on:
+  pull_request:
+    branches: [ develop ]
+    types: [opened, synchronize]
+
+jobs:
+  review_and_notify:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Generate automatic review
+        id: llm
+        run: |
+          echo "review=Analyse automatique (TP) : vérifier la cohérence des endpoints, les liens vers les Issues (fixes #numéro) et le respect de la structure src/controllers/src/routes." >> $GITHUB_OUTPUT
+
+      - name: Comment on PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const body = `${{ steps.llm.outputs.review }}`
+            github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body
+            })
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Send email (placeholder)
+        run: echo "Would send email to ${{ secrets.TEAM_EMAIL_LIST }}"
