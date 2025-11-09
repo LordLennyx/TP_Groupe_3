@@ -14,3 +14,4 @@ app.get("/", (req, res) => {
 app.listen(PORT, () => {
   console.log(`? Serveur lancé sur http://localhost:${PORT}`);
 });
+Simulation d'erreur.
