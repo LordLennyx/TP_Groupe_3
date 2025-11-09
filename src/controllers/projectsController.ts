@@ -44,7 +44,8 @@ export const updateProjectGrade = (req: Request, res: Response) => {
 
   const projects = readDB();
   const index = projects.findIndex((p) => p.id === id);
-  if (index === -1) return res.status(404).json({ message: "Projet introuvable" });
+  if (index === -1)
+    return res.status(404).json({ message: "Projet introuvable" });
 
   projects[index].grade = grade;
   writeDB(projects);
@@ -68,7 +69,7 @@ export const getProjectsByCourse = (req: Request, res: Response) => {
   const { courseName } = req.params;
   const projects = readDB();
   const filtered = projects.filter(
-    (p) => p.course.toLowerCase() === courseName.toLowerCase()
+    (p) => p.course.toLowerCase() === courseName.toLowerCase(),
   );
   return res.json(filtered);
 };
