@@ -1,72 +1,64 @@
-name: LLM Review
+cat > .github/workflows/llm-review.yml << 'EOF'
+name: Revue LLM & Notification
 
 on:
   pull_request:
-    branches: [develop]
     types: [opened, synchronize]
-
-# 👉 donne au workflow le droit d'écrire un commentaire sur la PR
-permissions:
-  contents: read
-  pull-requests: write
-  issues: write
+    branches: [develop]
 
 jobs:
   review_and_notify:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Call Gemini and comment on PR
+      - name: Get PR Diff
+        id: diff
+        run: |
+          curl -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+               -H "Accept: application/vnd.github.v3.diff" \
+               "$$ {{ github.api_url }}/repos/ $${{ github.repository }}/pulls/${{ github.event.pull_request.number }}" > pr_diff.txt
+          echo "diff<<EOF" >> $GITHUB_OUTPUT
+          cat pr_diff.txt >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Call Gemini API
+        id: gemini
+        run: |
+          RESPONSE=$$ (curl -s -X POST "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key= $${{ secrets.GEMINI_API_KEY }}" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "contents": [{
+                "parts": [{
+                  "text": "Tu es un relecteur de code expert. Analyse ce diff de PR. Si le code est bon, fournis des pistes d\'amélioration. Si le code contient des bugs, liste-les. Réponds en français.\n\nDiff:\n${{ steps.diff.outputs.diff }}"
+                }]
+              }]
+            }')
+          LLM_RESPONSE=$(echo $RESPONSE | jq -r '.candidates[0].content.parts[0].text')
+          echo "llm_response<<EOF" >> $GITHUB_OUTPUT
+          echo "$LLM_RESPONSE" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Comment on PR
         uses: actions/github-script@v7
-        env:
-            GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           script: |
-            const apiKey = process.env.GEMINI_API_KEY;
-            const prompt = "Tu es un assistant IA. Fais une courte revue automatique (2-3 phrases) d'une pull request d'étudiant.";
-
-            let finalText = "";
-
-            // 1) on essaye d'appeler Gemini, mais on tolère l'échec (404 dans ton cas)
-            try {
-              const res = await fetch(
-                "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent" + apiKey,
-                {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({
-                    contents: [
-                      {
-                        parts: [
-                          { text: prompt }
-                        ]
-                      }
-                    ]
-                  })
-                }
-              );
-
-              if (!res.ok) {
-                throw new Error(`Gemini API error: ${res.status} ${res.statusText}`);
-              }
-
-              const data = await res.json();
-              finalText =
-                data?.candidates?.[0]?.content?.parts?.[0]?.text ??
-                "Gemini a répondu mais sans contenu exploitable.";
-            } catch (err) {
-              console.log("Erreur lors de l'appel à Gemini:", err.message);
-              finalText = "🤖 Revue automatique (message de secours) : l'appel à Gemini n'a pas abouti, mais le workflow fonctionne.";
-            }
-
-            // 2) on commente la PR (c’est ce qui bloquait avant à cause du 403)
-            await github.rest.issues.createComment({
+            const response = await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.issue.number,
-              body: "🤖 **Revue automatique LLM**\n\n" + finalText
+              body: `Revue LLM:\n\`\`\`\n${{ steps.gemini.outputs.llm_response }}\n\`\`\`\n\n@${{ github.actor }}`
             });
+
+      - name: Send Email
+        uses: dawidd6/action-send-mail@v4
+        with:
+          server_address: smtp.gmail.com
+          server_port: 587
+          username: ${{ secrets.MAIL_USERNAME }}
+          password: ${{ secrets.MAIL_PASSWORD }}
+          subject: "Revue LLM pour PR #$$ {{ github.event.pull_request.number }} par @ $${{ github.actor }}"
+          to: ${{ secrets.TEAM_EMAIL_LIST }}
+          from: ${{ secrets.MAIL_USERNAME }}
+          body: "Voici la revue générée par l'IA : \n\n${{ steps.gemini.outputs.llm_response }}"
+EOF
