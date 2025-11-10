@@ -1,23 +1,64 @@
-name: CI
+cat > .github/workflows/ci.yml << 'EOF'
+name: CI de Base
 
 on:
   pull_request:
-    branches: [ develop ]
+    branches: [develop]
 
 jobs:
-  build-and-test:
+  setup:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup Node
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: '20'
+          cache: 'npm'
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
+
+  lint:
+    runs-on: ubuntu-latest
+    needs: setup
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
 
       - name: Lint
-        run: npm run lint
+        run: npx eslint . --max-warnings=0  # Strict: échoue si warnings
+
+  type-check:
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Type Check
+        run: npx tsc --noEmit  # TypeScript sans génération de fichiers
+
+  test:
+    runs-on: ubuntu-latest
+    needs: type-check
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run Tests
+        run: npm test  # Assure-toi d'avoir des tests, ou adapte à ton projet
+EOF
