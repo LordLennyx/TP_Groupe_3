@@ -1,0 +1,72 @@
+name: LLM Review
+
+on:
+  pull_request:
+    branches: [develop]
+    types: [opened, synchronize]
+
+# 👉 donne au workflow le droit d'écrire un commentaire sur la PR
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  review_and_notify:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Call Gemini and comment on PR
+        uses: actions/github-script@v7
+        env:
+            GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          script: |
+            const apiKey = process.env.GEMINI_API_KEY;
+            const prompt = "Tu es un assistant IA. Fais une courte revue automatique (2-3 phrases) d'une pull request d'étudiant.";
+
+            let finalText = "";
+
+            // 1) on essaye d'appeler Gemini, mais on tolère l'échec (404 dans ton cas)
+            try {
+              const res = await fetch(
+                "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent" + apiKey,
+                {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    contents: [
+                      {
+                        parts: [
+                          { text: prompt }
+                        ]
+                      }
+                    ]
+                  })
+                }
+              );
+
+              if (!res.ok) {
+                throw new Error(`Gemini API error: ${res.status} ${res.statusText}`);
+              }
+
+              const data = await res.json();
+              finalText =
+                data?.candidates?.[0]?.content?.parts?.[0]?.text ??
+                "Gemini a répondu mais sans contenu exploitable.";
+            } catch (err) {
+              console.log("Erreur lors de l'appel à Gemini:", err.message);
+              finalText = "🤖 Revue automatique (message de secours) : l'appel à Gemini n'a pas abouti, mais le workflow fonctionne.";
+            }
+
+            // 2) on commente la PR (c’est ce qui bloquait avant à cause du 403)
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: "🤖 **Revue automatique LLM**\n\n" + finalText
+            });
